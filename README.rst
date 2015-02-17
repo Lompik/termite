@@ -34,9 +34,9 @@ INSERT MODE
 +----------------------+---------------------------------------------+
 | ``ctrl-shift-r``     | reload configuration file                   |
 +----------------------+---------------------------------------------+
-| ``ctrl-shift-c``     | copy to CLIPBOARD                           |
+| ``contr-insert``     | copy to CLIPBOARD                           |
 +----------------------+---------------------------------------------+
-| ``ctrl-shift-v``     | paste from CLIPBOARD                        |
+| ``shift-insert``     | paste from CLIPBOARD                        |
 +----------------------+---------------------------------------------+
 | ``ctrl-shift-u``     | unicode input (standard GTK binding)        |
 +----------------------+---------------------------------------------+
