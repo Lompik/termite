@@ -856,6 +856,7 @@ gboolean key_press_cb(VteTerminal *vte, GdkEventKey *event, keybind_info *info) 
                 launch_in_directory(vte);
                 return TRUE;
             case GDK_KEY_space:
+            case GDK_KEY_nobreakspace: // shift-space on some keyboard layouts
                 enter_command_mode(vte, &info->select);
                 return TRUE;
             case GDK_KEY_x:
@@ -1193,7 +1194,7 @@ get_config_cairo_color(GKeyFile *config, const char *group, const char *key) {
 }
 
 static void load_theme(GtkWindow *window, VteTerminal *vte, GKeyFile *config, hint_info &hints) {
-    std::array<GdkRGBA, 255> palette;
+    std::array<GdkRGBA, 256> palette;
     char color_key[] = "color000";
 
     for (unsigned i = 0; i < palette.size(); i++) {
