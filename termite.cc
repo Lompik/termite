@@ -28,9 +28,12 @@
 #include <set>
 #include <string>
 
-#include <gdk/gdkx.h>
 #include <gtk/gtk.h>
 #include <vte/vte.h>
+
+#ifdef GDK_WINDOWING_X11
+#include <gdk/gdkx.h>
+#endif
 
 #include "url_regex.hh"
 #include "util/clamp.hh"
@@ -159,6 +162,19 @@ static long first_row(VteTerminal *vte);
 
 static std::function<void ()> reload_config;
 
+static void override_background_color(GtkWidget *widget, GdkRGBA *rgba) {
+    GtkCssProvider *provider = gtk_css_provider_new();
+
+    char *css = g_strdup_printf("* { background-color: %s; }", gdk_rgba_to_string(rgba));
+    gtk_css_provider_load_from_data(provider, css, -1, nullptr);
+    g_free(css);
+
+    gtk_style_context_add_provider(gtk_widget_get_style_context(widget),
+                                   GTK_STYLE_PROVIDER(provider),
+                                   GTK_STYLE_PROVIDER_PRIORITY_APPLICATION);
+    g_object_unref(provider);
+}
+
 static const std::map<int, const char *> modify_table = {
     { GDK_KEY_Tab,        "\033[27;5;9~"  },
     { GDK_KEY_Return,     "\033[27;5;13~" },
@@ -209,22 +225,28 @@ void launch_browser(char *browser, char *url) {
         return;
     }
 
-    g_spawn_async(nullptr, browser_cmd, nullptr, G_SPAWN_SEARCH_PATH,
-                  nullptr, nullptr, nullptr, &error);
-    if (error) {
+    GPid child_pid;
+    if (!g_spawn_async(nullptr, browser_cmd, nullptr, G_SPAWN_SEARCH_PATH,
+                       nullptr, nullptr, &child_pid, &error)) {
         g_printerr("error launching '%s': %s\n", browser, error->message);
         g_error_free(error);
     }
+    g_spawn_close_pid(child_pid);
 }
 
-static void set_size_hints(GtkWindow *window, int char_width, int char_height) {
-    static const GdkWindowHints wh = (GdkWindowHints)(GDK_HINT_RESIZE_INC | GDK_HINT_MIN_SIZE | GDK_HINT_BASE_SIZE);
-    GdkGeometry hints;
+static void set_size_hints(GtkWindow *window, VteTerminal *vte) {
+    static const GdkWindowHints wh = (GdkWindowHints)(GDK_HINT_RESIZE_INC | GDK_HINT_MIN_SIZE |
+                                                      GDK_HINT_BASE_SIZE);
+    const int char_width = (int)vte_terminal_get_char_width(vte);
+    const int char_height = (int)vte_terminal_get_char_height(vte);
+    int padding_left, padding_top, padding_right, padding_bottom;
+    get_vte_padding(vte, &padding_left, &padding_top, &padding_right, &padding_bottom);
 
-    hints.base_width = char_width;
-    hints.base_height = char_height;
-    hints.min_width = char_width;
-    hints.min_height = char_height;
+    GdkGeometry hints;
+    hints.base_width = char_width + padding_left + padding_right;
+    hints.base_height = char_height + padding_top + padding_bottom;
+    hints.min_width = hints.base_width;
+    hints.min_height = hints.base_height;
     hints.width_inc  = char_width;
     hints.height_inc = char_height;
 
@@ -245,7 +267,7 @@ static void launch_in_directory(VteTerminal *vte) {
 
 static void find_urls(VteTerminal *vte, search_panel_info *panel_info) {
     GRegex *regex = g_regex_new(url_regex, G_REGEX_CASELESS, G_REGEX_MATCH_NOTEMPTY, nullptr);
-    GArray *attributes = g_array_new(FALSE, FALSE, sizeof (VteCharAttributes));
+    GArray *attributes = g_array_new(FALSE, FALSE, sizeof(VteCharAttributes));
     auto content = make_unique(vte_terminal_get_text(vte, nullptr, nullptr, attributes), g_free);
 
     for (char *s_ptr = content.get(), *saveptr; ; s_ptr = nullptr) {
@@ -362,7 +384,7 @@ static gboolean draw_cb(const draw_cb_info *info, cairo_t *cr) {
             bool active = false;
 
             snprintf(buffer, sizeof(buffer), "%u", i + 1);
-            if(len)
+            if (len)
                 active = strncmp(buffer, info->panel->fulltext, len) == 0;
 
             draw_marker(cr, desc, info->hints, x, y, buffer, active);
@@ -749,6 +771,7 @@ gboolean key_press_cb(VteTerminal *vte, GdkEventKey *event, keybind_info *info) 
         }
         switch (event->keyval) {
             case GDK_KEY_Escape:
+            case GDK_KEY_q:
                 exit_command_mode(vte, &info->select);
                 gtk_widget_hide(info->panel.da);
                 gtk_widget_hide(info->panel.panel);
@@ -1035,7 +1058,7 @@ gboolean button_press_cb(VteTerminal *vte, GdkEventButton *event, const config_i
 
         if (event->button == 1) {
             launch_browser(info->browser, match.get());
-        } else if(event->button == 3) {
+        } else if (event->button == 3) {
             GtkClipboard *clipboard = gtk_clipboard_get(GDK_SELECTION_CLIPBOARD);
             gtk_clipboard_set_text(clipboard, match.get(), -1);
         }
@@ -1198,7 +1221,7 @@ static void load_theme(GtkWindow *window, VteTerminal *vte, GKeyFile *config, hi
     char color_key[] = "color000";
 
     for (unsigned i = 0; i < palette.size(); i++) {
-        snprintf(color_key, sizeof color_key, "color%u", i);
+        snprintf(color_key, sizeof(color_key), "color%u", i);
         if (auto color = get_config_color(config, "colors", color_key)) {
             palette[i] = *color;
         } else if (i < 16) {
@@ -1230,7 +1253,7 @@ static void load_theme(GtkWindow *window, VteTerminal *vte, GKeyFile *config, hi
     }
     if (auto color = get_config_color(config, "colors", "background")) {
         vte_terminal_set_color_background(vte, &*color);
-        gtk_widget_override_background_color(GTK_WIDGET(window), GTK_STATE_FLAG_NORMAL, &*color);
+        override_background_color(GTK_WIDGET(window), &*color);
     }
     if (auto color = get_config_color(config, "colors", "cursor")) {
         vte_terminal_set_color_cursor(vte, &*color);
@@ -1321,8 +1344,7 @@ static void set_config(GtkWindow *window, VteTerminal *vte, config_info *info,
     }
 
     if (!info->browser) {
-        g_warning("Couldn't read BROWSER and there is no browser configured, disabling clickable_url and url hints");
-        info->clickable_url = false;
+        info->browser = g_strdup("xdg-open");
     }
 
     if (info->clickable_url) {
@@ -1378,8 +1400,7 @@ static void set_config(GtkWindow *window, VteTerminal *vte, config_info *info,
     }
 
     if (info->size_hints) {
-        set_size_hints(GTK_WINDOW(window), (int)vte_terminal_get_char_width(vte),
-                       (int)vte_terminal_get_char_height(vte));
+        set_size_hints(GTK_WINDOW(window), vte);
     }
 
     load_theme(window, vte, config, info->hints);
@@ -1509,8 +1530,8 @@ int main(int argc, char **argv) {
 
     GdkRGBA transparent {0, 0, 0, 0};
 
-    gtk_widget_override_background_color(hint_overlay, GTK_STATE_FLAG_NORMAL, &transparent);
-    gtk_widget_override_background_color(info.panel.da, GTK_STATE_FLAG_NORMAL, &transparent);
+    override_background_color(hint_overlay, &transparent);
+    override_background_color(info.panel.da, &transparent);
 
     gtk_widget_set_halign(info.panel.da, GTK_ALIGN_FILL);
     gtk_widget_set_valign(info.panel.da, GTK_ALIGN_FILL);
@@ -1573,17 +1594,22 @@ int main(int argc, char **argv) {
     gtk_widget_hide(info.panel.panel);
     gtk_widget_hide(info.panel.da);
 
-    GdkWindow *gdk_window = gtk_widget_get_window(window);
-    if (!gdk_window) {
-        g_printerr("no window\n");
-        return EXIT_FAILURE;
-    }
-    char xid_s[std::numeric_limits<long unsigned>::digits10 + 1];
-    snprintf(xid_s, sizeof xid_s, "%lu", GDK_WINDOW_XID(gdk_window));
     char **env = g_get_environ();
-    env = g_environ_setenv(env, "WINDOWID", xid_s, TRUE);
+
+#ifdef GDK_WINDOWING_X11
+    if (GDK_IS_X11_SCREEN(gtk_widget_get_screen(window))) {
+        GdkWindow *gdk_window = gtk_widget_get_window(window);
+        if (!gdk_window) {
+            g_printerr("no window\n");
+            return EXIT_FAILURE;
+        }
+        char xid_s[std::numeric_limits<long unsigned>::digits10 + 1];
+        snprintf(xid_s, sizeof(xid_s), "%lu", GDK_WINDOW_XID(gdk_window));
+        env = g_environ_setenv(env, "WINDOWID", xid_s, TRUE);
+    }
+#endif
+
     env = g_environ_setenv(env, "TERM", term, TRUE);
-    env = g_environ_setenv(env, "VTE_VERSION", "3405", TRUE);
 
     GPid child_pid;
     if (vte_terminal_spawn_sync(vte, VTE_PTY_DEFAULT, nullptr, command_argv, env,
