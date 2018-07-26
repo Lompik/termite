@@ -1031,7 +1031,7 @@ gboolean key_press_cb(VteTerminal *vte, GdkEventKey *event, keybind_info *info) 
 	      vte_terminal_copy_clipboard(vte);
 	      return TRUE;
 	    default:
-	      if (modify_key_feed(event, info))
+                if (modify_key_feed(event, info, modify_table))
 		return TRUE;
 	}
     } else if (modifiers == GDK_SHIFT_MASK) {
@@ -1039,9 +1039,6 @@ gboolean key_press_cb(VteTerminal *vte, GdkEventKey *event, keybind_info *info) 
             case GDK_KEY_Insert:
 	      vte_terminal_paste_clipboard(vte);
 	      return TRUE;
-	    default:
-	      if (modify_key_feed(event, info))
-		return TRUE;
             case GDK_KEY_plus:
                 increase_font_scale(vte);
                 return TRUE;
@@ -1054,7 +1051,6 @@ gboolean key_press_cb(VteTerminal *vte, GdkEventKey *event, keybind_info *info) 
             default:
                 if (modify_key_feed(event, info, modify_table))
                     return TRUE;
->>>>>>> 3e2c10f9f0e5ed625b140600b6f29b1a81e50da8
         }
     }
     return FALSE;
