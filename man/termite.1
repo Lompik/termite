@@ -5,7 +5,7 @@ a tiling and/or tabbing enabled window manager.
 .SH SYNOPSIS
 \fBtermite\fP [options]
 .SH DESCRIPTION
-\fBtermite\fP is a GTK-based terminal emulator inteded for use within
+\fBtermite\fP is a GTK-based terminal emulator intended for use within
 window managers with tiling and/or tabbing support. It provides a fast
 terminal experience and pleasant array of keyboard-centric features.
 .SH OPTIONS
@@ -23,8 +23,8 @@ Set the termite window's title to \fITITLE\fP. This disables dynamic
 titles.
 .IP "\fB\-d\fR, \fB\-\-directory\fR\fB=\fR\fIDIRECTORY\fR"
 Tell termite to change to \fIDIRECTORY\fP when launching.
-.IP "\fB\-\-geometry\fR\fB=\fR\fIGEOMETRY\fR"
-Override the window geometry in pixels.
+.IP "\fB\-\-icon\fR\f8=\fR\fIICON\fR"
+Override the window icon name.
 .IP "\fB\-\-hold\fR"
 Keep termite open after the child process exits.
 .IP "\fB\-\-display\fR\fB=\fR\fIDISPLAY\fR"
@@ -55,6 +55,8 @@ copy to \fICLIPBOARD\fP
 paste from \fICLIPBOARD\fP
 .IP "\fBctrl-shift-u\fP"
 unicode input (standard GTK binding)
+.IP "\fBctrl-shift-e\fP"
+emoji (standard GTK binding)
 .IP "\fBctrl-tab\fP"
 start scrollback completion
 .IP "\fBctrl-shift-space\fP"
@@ -69,6 +71,14 @@ scroll down a line
 scroll up a page
 .IP "\fBshift-pagedown\fP"
 scroll down a page
+.IP "\fBctrl-shift-l\fP"
+reset and clear
+.IP "\fBctrl-+\fP"
+increase font size
+.IP "\fBctrl--\fP"
+decrease font size
+.IP "\fBctrl-=\fP"
+reset font size to default
 .SS Selection Mode
 In \fBSelection Mode\fP you interact with the interface of \fBtermite\fP
 and the visual representation of the programs running within it. You can
@@ -89,17 +99,27 @@ visual block mode
 move cursor left/down/up/right
 .IP "\fBw\fP or \fBshift-right\fP"
 forward word
+.IP "\fBe\fP"
+forward to end of word
 .IP "\fBb\fP or \fBshift-left\fP"
 backward word
 .IP "\fBW\fP or \fBctrl-right\fP"
 forward \fIWORD\fP (non-whitespace)
+.IP "\fBE\fP"
+forward to end of \fIWORD\fP (non-whitespace)
 .IP "\fBB\fP or \fBctrl-left\fP"
 backward \fIWORD\fP (non-whitespace)
-.IP "\fB0\fP"
+.IP "\fBH\fP"
+move cursor to the top of the screen
+.IP "\fBM\fP"
+move cursor to the middle of the screen
+.IP "\fBL\fP"
+move cursor to the bottom of the screen
+.IP "\fB0\fP or \fBhome\fP"
 move cursor to the first column in the row\fP"
 .IP "\fB^\fP"
 beginning-of-line (first non-blank character)
-.IP "\fB$\fP"
+.IP "\fB$\fP or \fBend\fP"
 end-of-line
 .IP "\fBg\fP"
 jump to start of first row
@@ -131,10 +151,6 @@ open the current selection as a url and enter insert mode
 next search match
 .IP "\fBN\fP"
 previous search match
-.IP "\fB+\fP"
-increase font size
-.IP "\fB-\fP"
-decrease font size
 .SS Hints Mode
 The
 \fBHints Mode\fP is meant for accessing urls outputted to the terminal.
@@ -178,3 +194,6 @@ if [[ $TERM == xterm-termite ]]; then
 fi
 .fi
 .PP
+
+.SH SEE ALSO
+man termite.config(5)
