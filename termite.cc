@@ -441,7 +441,7 @@ static void update_selection(VteTerminal *vte, const select_info *select) {
     }
 
     const long n_columns = vte_terminal_get_column_count(vte);
-    long cursor_col, cursor_row;
+    long cursor_col, cursor_row, selection_x_end;
     vte_terminal_get_cursor_position(vte, &cursor_col, &cursor_row);
 
     vte_terminal_set_selection_block_mode(vte, select->mode == vi_mode::visual_block);
@@ -450,22 +450,38 @@ static void update_selection(VteTerminal *vte, const select_info *select) {
         const long begin = select->begin_row * n_columns + select->begin_col;
         const long end = cursor_row * n_columns + cursor_col;
         if (begin < end) {
+            selection_x_end = cursor_col;
+#if VTE_CHECK_VERSION(0, 55, 0)
+            selection_x_end += 1;
+#endif
             vte_terminal_select_text(vte, select->begin_col, select->begin_row,
-                                     cursor_col, cursor_row);
+                                     selection_x_end, cursor_row);
         } else {
+            selection_x_end = select->begin_col;
+#if VTE_CHECK_VERSION(0, 55, 0)
+            selection_x_end += 1;
+#endif
             vte_terminal_select_text(vte, cursor_col, cursor_row,
-                                     select->begin_col, select->begin_row);
+                                     selection_x_end, select->begin_row);
         }
     } else if (select->mode == vi_mode::visual_line) {
+        selection_x_end = n_columns - 1;
+#if VTE_CHECK_VERSION(0, 55, 0)
+        selection_x_end += 1;
+#endif
         vte_terminal_select_text(vte, 0,
                                  std::min(select->begin_row, cursor_row),
-                                 n_columns - 1,
+                                 selection_x_end,
                                  std::max(select->begin_row, cursor_row));
     } else if (select->mode == vi_mode::visual_block) {
+        selection_x_end = std::max(select->begin_col, cursor_col);
+#if VTE_CHECK_VERSION(0, 55, 0)
+        selection_x_end += 1;
+#endif
         vte_terminal_select_text(vte,
                                  std::min(select->begin_col, cursor_col),
                                  std::min(select->begin_row, cursor_row),
-                                 std::max(select->begin_col, cursor_col),
+                                 selection_x_end,
                                  std::max(select->begin_row, cursor_row));
     }
 
@@ -809,7 +825,7 @@ gboolean window_state_cb(GtkWindow *, GdkEventWindowState *event, keybind_info *
 gboolean key_press_cb(VteTerminal *vte, GdkEventKey *event, keybind_info *info) {
     const guint modifiers = event->state & gtk_accelerator_get_default_mod_mask();
 
-    if (info->config.fullscreen && event->keyval == GDK_KEY_F11) {
+    if (info->config.fullscreen && event->keyval == GDK_KEY_F11 && !modifiers) {
         info->fullscreen_toggle(info->window);
         return TRUE;
     }
@@ -1040,9 +1056,11 @@ gboolean key_press_cb(VteTerminal *vte, GdkEventKey *event, keybind_info *info) 
 	      vte_terminal_paste_clipboard(vte);
 	      return TRUE;
             case GDK_KEY_plus:
+            case GDK_KEY_KP_Add:
                 increase_font_scale(vte);
                 return TRUE;
             case GDK_KEY_minus:
+            case GDK_KEY_KP_Subtract:
                 decrease_font_scale(vte);
                 return TRUE;
             case GDK_KEY_equal:
@@ -1489,6 +1507,11 @@ static void set_config(GtkWindow *window, VteTerminal *vte, GtkWidget *scrollbar
 #if VTE_CHECK_VERSION (0, 49, 1)
     vte_terminal_set_allow_hyperlink(vte, cfg_bool("hyperlinks", FALSE));
 #endif
+#if VTE_CHECK_VERSION (0, 51, 2)
+    vte_terminal_set_bold_is_bright(vte, cfg_bool("bold_is_bright", TRUE));
+    vte_terminal_set_cell_height_scale(vte, get_config_double(config, "options", "cell_height_scale").get_value_or(1.0));
+    vte_terminal_set_cell_width_scale(vte, get_config_double(config, "options", "cell_width_scale").get_value_or(1.0));
+#endif
     info->dynamic_title = cfg_bool("dynamic_title", TRUE);
     info->urgent_on_bell = cfg_bool("urgent_on_bell", TRUE);
     info->clickable_url = cfg_bool("clickable_url", TRUE);
@@ -1518,7 +1541,7 @@ static void set_config(GtkWindow *window, VteTerminal *vte, GtkWidget *scrollbar
                                         PCRE2_MULTILINE | PCRE2_NOTEMPTY,
                                         nullptr),
                 0);
-        vte_terminal_match_set_cursor_type(vte, info->tag, GDK_HAND2);
+        vte_terminal_match_set_cursor_name(vte, info->tag, "hand");
     } else if (info->tag != -1) {
         vte_terminal_match_remove(vte, info->tag);
         info->tag = -1;
